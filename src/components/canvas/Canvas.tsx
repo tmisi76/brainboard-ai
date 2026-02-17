@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useState, useRef, type DragEvent } from "react";
 import {
   ReactFlow,
   Background,
@@ -14,6 +14,8 @@ import {
   type Edge,
   BackgroundVariant,
   type ReactFlowInstance,
+  type EdgeMouseHandler,
+  MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -30,17 +32,52 @@ const nodeTypes = {
 
 const defaultNodes: Node[] = [
   {
-    id: "welcome",
+    id: "welcome-1",
     type: "textNode",
-    position: { x: 250, y: 200 },
+    position: { x: 100, y: 150 },
     data: {
-      label: "Üdvözlő jegyzet",
-      text: "Üdvözöl a BrainBoard AI! Jobb klikkel adhatsz hozzá új node-okat a vászonhoz.",
+      label: "Üdvözlünk!",
+      text: "Ez a BrainBoard AI vászon.\n\n- Jobb klikk: új node hozzáadása\n- Sidebar-ból húzz elemeket\n- Node-ok összekötése: húzd a csatlakozókat\n- Dupla katt: szerkesztés",
     },
+  },
+  {
+    id: "welcome-2",
+    type: "youtubeNode",
+    position: { x: 500, y: 100 },
+    data: { label: "Bemutató", videoUrl: "", videoTitle: "" },
+  },
+  {
+    id: "welcome-3",
+    type: "imageNode",
+    position: { x: 500, y: 350 },
+    data: { label: "Inspiráció", imageUrl: "", alt: "" },
   },
 ];
 
-const defaultEdges: Edge[] = [];
+const defaultEdges: Edge[] = [
+  {
+    id: "e-welcome-1-2",
+    source: "welcome-1",
+    target: "welcome-2",
+    animated: true,
+    style: { stroke: "#6d28d9", strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: "#6d28d9" },
+  },
+  {
+    id: "e-welcome-1-3",
+    source: "welcome-1",
+    target: "welcome-3",
+    animated: true,
+    style: { stroke: "#6d28d9", strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: "#6d28d9" },
+  },
+];
+
+const defaultDataForType: Record<string, Record<string, string>> = {
+  textNode: { label: "Új jegyzet", text: "" },
+  youtubeNode: { label: "YouTube videó", videoUrl: "", videoTitle: "" },
+  imageNode: { label: "Kép", imageUrl: "", alt: "" },
+};
 
 export function Canvas() {
   const [nodes, setNodes, onNodesChange] = useNodesState(defaultNodes);
@@ -58,12 +95,20 @@ export function Canvas() {
         addEdge(
           {
             ...connection,
-            style: { stroke: "#6d28d9", strokeWidth: 2 },
             animated: true,
+            style: { stroke: "#6d28d9", strokeWidth: 2 },
+            markerEnd: { type: MarkerType.ArrowClosed, color: "#6d28d9" },
           },
           eds
         )
       );
+    },
+    [setEdges]
+  );
+
+  const onEdgeDoubleClick: EdgeMouseHandler = useCallback(
+    (_event, edge) => {
+      setEdges((eds) => eds.filter((e) => e.id !== edge.id));
     },
     [setEdges]
   );
@@ -94,22 +139,37 @@ export function Canvas() {
   const onAddNode = useCallback(
     (type: string, position: { x: number; y: number }) => {
       const id = `${type}-${Date.now()}`;
-      const defaultData: Record<string, Record<string, string>> = {
-        textNode: { label: "Új jegyzet", text: "" },
-        youtubeNode: { label: "YouTube videó", videoUrl: "", videoTitle: "" },
-        imageNode: { label: "Kép", imageUrl: "", alt: "" },
-      };
-
       const newNode: Node = {
         id,
         type,
         position,
-        data: defaultData[type] || {},
+        data: { ...(defaultDataForType[type] || {}) },
       };
-
       setNodes((nds) => [...nds, newNode]);
     },
     [setNodes]
+  );
+
+  const onDragOver = useCallback((event: DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const onDrop = useCallback(
+    (event: DragEvent) => {
+      event.preventDefault();
+
+      const type = event.dataTransfer.getData("application/reactflow");
+      if (!type || !reactFlowInstance.current) return;
+
+      const position = reactFlowInstance.current.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      onAddNode(type, position);
+    },
+    [onAddNode]
   );
 
   return (
@@ -120,35 +180,53 @@ export function Canvas() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onEdgeDoubleClick={onEdgeDoubleClick}
         onInit={(instance) => {
           reactFlowInstance.current = instance;
         }}
         onContextMenu={onContextMenu}
         onPaneClick={onPaneClick}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
         nodeTypes={nodeTypes}
         fitView
         minZoom={0.1}
         maxZoom={4}
+        snapToGrid
+        snapGrid={[15, 15]}
+        deleteKeyCode={["Delete", "Backspace"]}
         defaultEdgeOptions={{
-          style: { stroke: "#6d28d9", strokeWidth: 2 },
           animated: true,
+          style: { stroke: "#6d28d9", strokeWidth: 2 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: "#6d28d9" },
         }}
         proOptions={{ hideAttribution: true }}
-        className="bg-zinc-950"
+        className="bg-slate-900"
       >
         <Background
           variant={BackgroundVariant.Dots}
           gap={20}
           size={1}
-          color="#27272a"
+          color="#334155"
         />
         <Controls
-          className="!rounded-xl !border !border-zinc-700 !bg-zinc-900 [&>button]:!border-zinc-700 [&>button]:!bg-zinc-900 [&>button]:!text-zinc-400 [&>button:hover]:!bg-zinc-800"
+          className="!rounded-xl !border !border-slate-700 !bg-slate-800 [&>button]:!border-slate-700 [&>button]:!bg-slate-800 [&>button]:!text-slate-400 [&>button:hover]:!bg-slate-700"
         />
         <MiniMap
-          nodeColor="#6d28d9"
+          nodeColor={(node) => {
+            switch (node.type) {
+              case "textNode":
+                return "#7c3aed";
+              case "youtubeNode":
+                return "#ef4444";
+              case "imageNode":
+                return "#10b981";
+              default:
+                return "#6d28d9";
+            }
+          }}
           maskColor="rgba(0, 0, 0, 0.7)"
-          className="!rounded-xl !border !border-zinc-700 !bg-zinc-900"
+          className="!rounded-xl !border !border-slate-700 !bg-slate-800"
         />
       </ReactFlow>
 
