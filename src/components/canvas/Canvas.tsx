@@ -24,16 +24,16 @@ import "@xyflow/react/dist/style.css";
 import { TextNode } from "@/components/nodes/TextNode";
 import { YouTubeNode } from "@/components/nodes/YouTubeNode";
 import { ImageNode } from "@/components/nodes/ImageNode";
+import { ChatNode } from "@/components/nodes/ChatNode";
 import { ContextMenu } from "./ContextMenu";
-import { AIChatPanel } from "./AIChatPanel";
 import { useBoardSync } from "@/hooks/useBoardSync";
-import { Sparkles } from "lucide-react";
 import type { Board } from "@/types/board";
 
 const nodeTypes = {
   textNode: TextNode,
   youtubeNode: YouTubeNode,
   imageNode: ImageNode,
+  chatNode: ChatNode,
 };
 
 const welcomeNodes: Node[] = [
@@ -42,8 +42,8 @@ const welcomeNodes: Node[] = [
     type: "textNode",
     position: { x: 100, y: 150 },
     data: {
-      label: "Üdvözlünk!",
-      text: "Ez a BrainBoard AI vászon.\n\n- Jobb klikk: új node hozzáadása\n- Sidebar-ból húzz elemeket\n- Node-ok összekötése: húzd a csatlakozókat\n- Dupla katt: szerkesztés",
+      label: "Kezdjük!",
+      text: "Üdvözlünk a BrainBoard AI-ban!\n\n1. Válassz vagy hozz létre egy board-ot fent\n2. Húzz elemeket a bal oldali eszköztárból\n3. Jobb klikk: új node hozzáadása\n4. Kösd össze a Chat node-ot más elemekkel\n5. Az AI az összekötött tartalmakkal dolgozik",
     },
   },
 ];
@@ -54,6 +54,7 @@ const defaultDataForType: Record<string, Record<string, string>> = {
   textNode: { label: "Új jegyzet", text: "" },
   youtubeNode: { label: "YouTube videó", videoUrl: "", videoTitle: "" },
   imageNode: { label: "Kép", imageUrl: "", alt: "" },
+  chatNode: { label: "AI Chat" },
 };
 
 const dbTypeToFlowType: Record<string, string> = {
@@ -87,7 +88,7 @@ function boardToFlow(board: Board): { nodes: Node[]; edges: Edge[] } {
           target: conn.targetId,
           label: conn.label ?? undefined,
           animated: true,
-          style: { stroke: "#6d28d9", strokeWidth: 2 },
+          style: { stroke: "#6d28d9", strokeWidth: 2, strokeDasharray: "8 4" },
           markerEnd: { type: MarkerType.ArrowClosed, color: "#6d28d9" },
         });
       }
@@ -109,12 +110,10 @@ export function Canvas({ board }: CanvasProps) {
     y: number;
     flowPosition: { x: number; y: number };
   } | null>(null);
-  const [chatOpen, setChatOpen] = useState(false);
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
   const { scheduleSave } = useBoardSync(board?.id ?? null);
   const loadedBoardRef = useRef<string | null>(null);
 
-  // Load board data
   useEffect(() => {
     if (board && board.id !== loadedBoardRef.current) {
       loadedBoardRef.current = board.id;
@@ -179,7 +178,7 @@ export function Canvas({ board }: CanvasProps) {
           {
             ...connection,
             animated: true,
-            style: { stroke: "#6d28d9", strokeWidth: 2 },
+            style: { stroke: "#6d28d9", strokeWidth: 2, strokeDasharray: "8 4" },
             markerEnd: { type: MarkerType.ArrowClosed, color: "#6d28d9" },
           },
           eds
@@ -280,11 +279,6 @@ export function Canvas({ board }: CanvasProps) {
     [onAddNode]
   );
 
-  const nodeContext = nodes
-    .filter((n) => n.type === "textNode" && (n.data as { text?: string }).text)
-    .map((n) => (n.data as { text: string }).text)
-    .join("\n---\n");
-
   return (
     <div className="relative h-full w-full">
       <ReactFlow
@@ -310,7 +304,7 @@ export function Canvas({ board }: CanvasProps) {
         deleteKeyCode={["Delete", "Backspace"]}
         defaultEdgeOptions={{
           animated: true,
-          style: { stroke: "#6d28d9", strokeWidth: 2 },
+          style: { stroke: "#6d28d9", strokeWidth: 2, strokeDasharray: "8 4" },
           markerEnd: { type: MarkerType.ArrowClosed, color: "#6d28d9" },
         }}
         proOptions={{ hideAttribution: true }}
@@ -334,6 +328,8 @@ export function Canvas({ board }: CanvasProps) {
                 return "#ef4444";
               case "imageNode":
                 return "#10b981";
+              case "chatNode":
+                return "#8b5cf6";
               default:
                 return "#6d28d9";
             }
@@ -342,22 +338,6 @@ export function Canvas({ board }: CanvasProps) {
           className="!rounded-xl !border !border-slate-700 !bg-slate-800"
         />
       </ReactFlow>
-
-      {/* AI Chat toggle */}
-      <button
-        onClick={() => setChatOpen(!chatOpen)}
-        className="absolute right-4 top-4 z-30 rounded-xl border border-slate-700 bg-slate-800 p-2.5 text-violet-400 shadow-lg transition-colors hover:bg-slate-700 hover:text-violet-300"
-        title="AI Asszisztens"
-      >
-        <Sparkles className="h-5 w-5" />
-      </button>
-
-      {/* AI Chat Panel */}
-      <AIChatPanel
-        isOpen={chatOpen}
-        onClose={() => setChatOpen(false)}
-        nodeContext={nodeContext || undefined}
-      />
 
       {contextMenu && (
         <ContextMenu

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Sidebar } from "@/components/sidebar/Sidebar";
+import { Navbar } from "@/components/navbar/Navbar";
+import { Toolbar } from "@/components/toolbar/Toolbar";
 import { Canvas } from "@/components/canvas/Canvas";
 import { useBoards } from "@/hooks/useBoards";
 import type { Board } from "@/types/board";
@@ -43,8 +44,8 @@ export default function Home() {
   );
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden">
-      <Sidebar
+    <div className="flex h-screen w-screen flex-col overflow-hidden">
+      <Navbar
         boards={boards}
         activeBoardId={activeBoardId}
         loading={loading}
@@ -52,9 +53,12 @@ export default function Home() {
         onCreateBoard={handleCreateBoard}
         onDeleteBoard={handleDeleteBoard}
       />
-      <main className="flex-1">
-        <Canvas board={activeBoard} />
-      </main>
+      <div className="flex flex-1 overflow-hidden">
+        <Toolbar />
+        <main className="flex-1">
+          <Canvas board={activeBoard} />
+        </main>
+      </div>
     </div>
   );
 }

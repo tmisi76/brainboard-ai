@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { FileText, Youtube, ImageIcon } from "lucide-react";
+import { FileText, Youtube, ImageIcon, MessageSquare } from "lucide-react";
 
 interface ContextMenuProps {
   x: number;
@@ -35,6 +35,14 @@ const nodeOptions = [
     icon: ImageIcon,
     color: "text-emerald-400",
     hoverBg: "hover:bg-emerald-500/10",
+  },
+  {
+    type: "chatNode",
+    label: "AI Chat",
+    description: "Kösd össze más elemekkel és kérdezz",
+    icon: MessageSquare,
+    color: "text-violet-400",
+    hoverBg: "hover:bg-violet-500/10",
   },
 ];
 

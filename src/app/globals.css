@@ -43,6 +43,11 @@ body {
   background-color: #18181b !important;
 }
 
+/* Allow scrolling inside nodes (chat node messages) */
+.react-flow__node .nowheel {
+  pointer-events: auto;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
