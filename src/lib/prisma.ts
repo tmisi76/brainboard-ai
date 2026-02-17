@@ -1,4 +1,5 @@
 import { PrismaClient } from "../generated/prisma/client";
+import { PrismaNeon } from "@prisma/adapter-neon";
 
 const globalForPrisma = globalThis as unknown as {
   _prisma: PrismaClient | undefined;
@@ -6,16 +7,15 @@ const globalForPrisma = globalThis as unknown as {
 
 function getPrismaClient(): PrismaClient {
   if (!globalForPrisma._prisma) {
-    const url = process.env.DATABASE_URL;
+    const url = process.env.POSTGRES_PRISMA_URL ?? process.env.DATABASE_URL;
     if (!url) {
       throw new Error(
         "DATABASE_URL environment variable is not set. " +
-          "Set it to your Prisma Accelerate URL (prisma+postgres://accelerate.prisma-data.net/...)"
+          "Create a Vercel Postgres database and link it to your project."
       );
     }
-    globalForPrisma._prisma = new PrismaClient({
-      accelerateUrl: url,
-    });
+    const adapter = new PrismaNeon({ connectionString: url });
+    globalForPrisma._prisma = new PrismaClient({ adapter });
   }
   return globalForPrisma._prisma;
 }
