@@ -14,6 +14,8 @@
     "@ai-sdk/gateway": "^3.0.46",
     "@ai-sdk/openai": "^3.0.29",
     "@ai-sdk/react": "^3.0.88",
+    "@neondatabase/serverless": "^1.0.2",
+    "@prisma/adapter-neon": "^7.4.0",
     "@prisma/client": "^7.4.0",
     "@xyflow/react": "^12.10.0",
     "ai": "^6.0.86",
