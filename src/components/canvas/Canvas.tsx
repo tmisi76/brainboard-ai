@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useRef, type DragEvent } from "react";
+import { useCallback, useState, useRef, useEffect, type DragEvent } from "react";
 import {
   ReactFlow,
   Background,
@@ -15,6 +15,8 @@ import {
   BackgroundVariant,
   type ReactFlowInstance,
   type EdgeMouseHandler,
+  type NodeChange,
+  type EdgeChange,
   MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -23,6 +25,10 @@ import { TextNode } from "@/components/nodes/TextNode";
 import { YouTubeNode } from "@/components/nodes/YouTubeNode";
 import { ImageNode } from "@/components/nodes/ImageNode";
 import { ContextMenu } from "./ContextMenu";
+import { AIChatPanel } from "./AIChatPanel";
+import { useBoardSync } from "@/hooks/useBoardSync";
+import { Sparkles } from "lucide-react";
+import type { Board } from "@/types/board";
 
 const nodeTypes = {
   textNode: TextNode,
@@ -30,7 +36,7 @@ const nodeTypes = {
   imageNode: ImageNode,
 };
 
-const defaultNodes: Node[] = [
+const welcomeNodes: Node[] = [
   {
     id: "welcome-1",
     type: "textNode",
@@ -40,38 +46,9 @@ const defaultNodes: Node[] = [
       text: "Ez a BrainBoard AI vászon.\n\n- Jobb klikk: új node hozzáadása\n- Sidebar-ból húzz elemeket\n- Node-ok összekötése: húzd a csatlakozókat\n- Dupla katt: szerkesztés",
     },
   },
-  {
-    id: "welcome-2",
-    type: "youtubeNode",
-    position: { x: 500, y: 100 },
-    data: { label: "Bemutató", videoUrl: "", videoTitle: "" },
-  },
-  {
-    id: "welcome-3",
-    type: "imageNode",
-    position: { x: 500, y: 350 },
-    data: { label: "Inspiráció", imageUrl: "", alt: "" },
-  },
 ];
 
-const defaultEdges: Edge[] = [
-  {
-    id: "e-welcome-1-2",
-    source: "welcome-1",
-    target: "welcome-2",
-    animated: true,
-    style: { stroke: "#6d28d9", strokeWidth: 2 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: "#6d28d9" },
-  },
-  {
-    id: "e-welcome-1-3",
-    source: "welcome-1",
-    target: "welcome-3",
-    animated: true,
-    style: { stroke: "#6d28d9", strokeWidth: 2 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: "#6d28d9" },
-  },
-];
+const welcomeEdges: Edge[] = [];
 
 const defaultDataForType: Record<string, Record<string, string>> = {
   textNode: { label: "Új jegyzet", text: "" },
@@ -79,20 +56,126 @@ const defaultDataForType: Record<string, Record<string, string>> = {
   imageNode: { label: "Kép", imageUrl: "", alt: "" },
 };
 
-export function Canvas() {
-  const [nodes, setNodes, onNodesChange] = useNodesState(defaultNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(defaultEdges);
+const dbTypeToFlowType: Record<string, string> = {
+  TEXT: "textNode",
+  YOUTUBE: "youtubeNode",
+  IMAGE: "imageNode",
+  PDF: "textNode",
+  AUDIO: "textNode",
+  LINK: "textNode",
+};
+
+function boardToFlow(board: Board): { nodes: Node[]; edges: Edge[] } {
+  const nodes: Node[] = board.nodes.map((n) => ({
+    id: n.id,
+    type: dbTypeToFlowType[n.type] || "textNode",
+    position: { x: n.positionX, y: n.positionY },
+    data: n.content as Record<string, unknown>,
+  }));
+
+  const edgeSet = new Set<string>();
+  const edges: Edge[] = [];
+
+  for (const node of board.nodes) {
+    for (const conn of node.sourceConnections ?? []) {
+      const key = `${conn.sourceId}-${conn.targetId}`;
+      if (!edgeSet.has(key)) {
+        edgeSet.add(key);
+        edges.push({
+          id: conn.id,
+          source: conn.sourceId,
+          target: conn.targetId,
+          label: conn.label ?? undefined,
+          animated: true,
+          style: { stroke: "#6d28d9", strokeWidth: 2 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: "#6d28d9" },
+        });
+      }
+    }
+  }
+
+  return { nodes, edges };
+}
+
+interface CanvasProps {
+  board: Board | null;
+}
+
+export function Canvas({ board }: CanvasProps) {
+  const [nodes, setNodes, onNodesChange] = useNodesState(welcomeNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(welcomeEdges);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
     flowPosition: { x: number; y: number };
   } | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
+  const { scheduleSave } = useBoardSync(board?.id ?? null);
+  const loadedBoardRef = useRef<string | null>(null);
+
+  // Load board data
+  useEffect(() => {
+    if (board && board.id !== loadedBoardRef.current) {
+      loadedBoardRef.current = board.id;
+      const { nodes: boardNodes, edges: boardEdges } = boardToFlow(board);
+      setNodes(boardNodes.length > 0 ? boardNodes : welcomeNodes);
+      setEdges(boardEdges);
+      setTimeout(() => reactFlowInstance.current?.fitView(), 100);
+    } else if (!board && loadedBoardRef.current) {
+      loadedBoardRef.current = null;
+      setNodes(welcomeNodes);
+      setEdges(welcomeEdges);
+    }
+  }, [board, setNodes, setEdges]);
+
+  const triggerSave = useCallback(
+    (updatedNodes: Node[], updatedEdges: Edge[]) => {
+      if (board) scheduleSave(updatedNodes, updatedEdges);
+    },
+    [board, scheduleSave]
+  );
+
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      onNodesChange(changes);
+      if (board) {
+        setTimeout(() => {
+          setNodes((n) => {
+            setEdges((e) => {
+              triggerSave(n, e);
+              return e;
+            });
+            return n;
+          });
+        }, 0);
+      }
+    },
+    [onNodesChange, board, triggerSave, setNodes, setEdges]
+  );
+
+  const handleEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      onEdgesChange(changes);
+      if (board) {
+        setTimeout(() => {
+          setNodes((n) => {
+            setEdges((e) => {
+              triggerSave(n, e);
+              return e;
+            });
+            return n;
+          });
+        }, 0);
+      }
+    },
+    [onEdgesChange, board, triggerSave, setNodes, setEdges]
+  );
 
   const onConnect: OnConnect = useCallback(
     (connection) => {
-      setEdges((eds) =>
-        addEdge(
+      setEdges((eds) => {
+        const newEdges = addEdge(
           {
             ...connection,
             animated: true,
@@ -100,17 +183,33 @@ export function Canvas() {
             markerEnd: { type: MarkerType.ArrowClosed, color: "#6d28d9" },
           },
           eds
-        )
-      );
+        );
+        if (board) {
+          setNodes((n) => {
+            triggerSave(n, newEdges);
+            return n;
+          });
+        }
+        return newEdges;
+      });
     },
-    [setEdges]
+    [setEdges, setNodes, board, triggerSave]
   );
 
   const onEdgeDoubleClick: EdgeMouseHandler = useCallback(
     (_event, edge) => {
-      setEdges((eds) => eds.filter((e) => e.id !== edge.id));
+      setEdges((eds) => {
+        const newEdges = eds.filter((e) => e.id !== edge.id);
+        if (board) {
+          setNodes((n) => {
+            triggerSave(n, newEdges);
+            return n;
+          });
+        }
+        return newEdges;
+      });
     },
-    [setEdges]
+    [setEdges, setNodes, board, triggerSave]
   );
 
   const onContextMenu = useCallback(
@@ -145,9 +244,18 @@ export function Canvas() {
         position,
         data: { ...(defaultDataForType[type] || {}) },
       };
-      setNodes((nds) => [...nds, newNode]);
+      setNodes((nds) => {
+        const updated = [...nds, newNode];
+        if (board) {
+          setEdges((e) => {
+            triggerSave(updated, e);
+            return e;
+          });
+        }
+        return updated;
+      });
     },
-    [setNodes]
+    [setNodes, setEdges, board, triggerSave]
   );
 
   const onDragOver = useCallback((event: DragEvent) => {
@@ -172,13 +280,18 @@ export function Canvas() {
     [onAddNode]
   );
 
+  const nodeContext = nodes
+    .filter((n) => n.type === "textNode" && (n.data as { text?: string }).text)
+    .map((n) => (n.data as { text: string }).text)
+    .join("\n---\n");
+
   return (
-    <div className="h-full w-full">
+    <div className="relative h-full w-full">
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
+        onNodesChange={handleNodesChange}
+        onEdgesChange={handleEdgesChange}
         onConnect={onConnect}
         onEdgeDoubleClick={onEdgeDoubleClick}
         onInit={(instance) => {
@@ -229,6 +342,22 @@ export function Canvas() {
           className="!rounded-xl !border !border-slate-700 !bg-slate-800"
         />
       </ReactFlow>
+
+      {/* AI Chat toggle */}
+      <button
+        onClick={() => setChatOpen(!chatOpen)}
+        className="absolute right-4 top-4 z-30 rounded-xl border border-slate-700 bg-slate-800 p-2.5 text-violet-400 shadow-lg transition-colors hover:bg-slate-700 hover:text-violet-300"
+        title="AI Asszisztens"
+      >
+        <Sparkles className="h-5 w-5" />
+      </button>
+
+      {/* AI Chat Panel */}
+      <AIChatPanel
+        isOpen={chatOpen}
+        onClose={() => setChatOpen(false)}
+        nodeContext={nodeContext || undefined}
+      />
 
       {contextMenu && (
         <ContextMenu

@@ -8,6 +8,15 @@ export interface BoardNode {
   width: number;
   height: number;
   content: Record<string, unknown>;
+  sourceConnections?: BoardConnection[];
+  targetConnections?: BoardConnection[];
+}
+
+export interface BoardConnection {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  label?: string | null;
 }
 
 export interface Board {
@@ -15,4 +24,14 @@ export interface Board {
   name: string;
   description: string | null;
   nodes: BoardNode[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BoardListItem {
+  id: string;
+  name: string;
+  description: string | null;
+  updatedAt: string;
+  _count: { nodes: number };
 }

@@ -5,11 +5,11 @@ import {
   SYSTEM_PROMPT,
   type AIModelId,
 } from "@/lib/ai/config";
-import { calculateCredits } from "@/lib/credits";
+import { calculateCredits, deductCredits } from "@/lib/credits";
 
 export async function POST(req: Request) {
   try {
-    const { messages, model: modelId } = await req.json();
+    const { messages, model: modelId, userId, nodeContext } = await req.json();
 
     const selectedModelId = (modelId as AIModelId) || DEFAULT_MODEL;
     const modelConfig = AI_MODELS[selectedModelId];
@@ -21,9 +21,13 @@ export async function POST(req: Request) {
       );
     }
 
+    const systemPrompt = nodeContext
+      ? `${SYSTEM_PROMPT}\n\nAktuális kontextus a felhasználó vásznáról:\n${nodeContext}`
+      : SYSTEM_PROMPT;
+
     const result = streamText({
       model: modelConfig.model,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages,
       onFinish: async ({ usage }) => {
         if (usage) {
@@ -34,9 +38,17 @@ export async function POST(req: Request) {
             completionTokens: outputTokens,
             totalTokens: inputTokens + outputTokens,
           });
-          console.log(
-            `[Credits] Model: ${selectedModelId}, Tokens: ${creditResult.tokenUsage.totalTokens}, Credits: ${creditResult.creditsUsed}`
-          );
+
+          if (userId) {
+            const deduction = await deductCredits(userId, creditResult.creditsUsed);
+            console.log(
+              `[Credits] Model: ${selectedModelId}, Tokens: ${creditResult.tokenUsage.totalTokens}, Credits: ${creditResult.creditsUsed}, Remaining: ${deduction.remainingCredits}`
+            );
+          } else {
+            console.log(
+              `[Credits] Model: ${selectedModelId}, Tokens: ${creditResult.tokenUsage.totalTokens}, Credits: ${creditResult.creditsUsed} (no user)`
+            );
+          }
         }
       },
     });

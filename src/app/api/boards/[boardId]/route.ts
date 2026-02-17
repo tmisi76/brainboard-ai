@@ -1,14 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/auth";
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
+    const { user, error } = await requireUser();
+    if (error) return error;
+
     const { boardId } = await params;
     const board = await prisma.board.findUnique({
-      where: { id: boardId },
+      where: { id: boardId, ownerId: user!.id },
       include: {
         nodes: {
           include: {
@@ -41,12 +45,15 @@ export async function PATCH(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
+    const { user, error } = await requireUser();
+    if (error) return error;
+
     const { boardId } = await params;
-    const data = await req.json();
+    const { name, description } = await req.json();
 
     const board = await prisma.board.update({
-      where: { id: boardId },
-      data,
+      where: { id: boardId, ownerId: user!.id },
+      data: { ...(name && { name }), ...(description !== undefined && { description }) },
     });
 
     return NextResponse.json(board);
@@ -64,8 +71,13 @@ export async function DELETE(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
+    const { user, error } = await requireUser();
+    if (error) return error;
+
     const { boardId } = await params;
-    await prisma.board.delete({ where: { id: boardId } });
+    await prisma.board.delete({
+      where: { id: boardId, ownerId: user!.id },
+    });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Board delete error:", error);

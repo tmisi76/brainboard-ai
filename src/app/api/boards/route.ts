@@ -1,9 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/auth";
 
 export async function GET() {
   try {
+    const { user, error } = await requireUser();
+    if (error) return error;
+
     const boards = await prisma.board.findMany({
+      where: { ownerId: user!.id },
       orderBy: { updatedAt: "desc" },
       include: { _count: { select: { nodes: true } } },
     });
@@ -19,17 +24,20 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const { name, description, ownerId } = await req.json();
+    const { user, error } = await requireUser();
+    if (error) return error;
 
-    if (!name || !ownerId) {
+    const { name, description } = await req.json();
+
+    if (!name) {
       return NextResponse.json(
-        { error: "Név és tulajdonos szükséges." },
+        { error: "Tábla név szükséges." },
         { status: 400 }
       );
     }
 
     const board = await prisma.board.create({
-      data: { name, description, ownerId },
+      data: { name, description, ownerId: user!.id },
     });
 
     return NextResponse.json(board, { status: 201 });
