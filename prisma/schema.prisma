@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Subscription {
+  FREE
+  PRO
+  TEAM
+}
+
+enum NodeType {
+  YOUTUBE
+  TEXT
+  PDF
+  IMAGE
+  AUDIO
+  LINK
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String?
+  credits      Int          @default(100)
+  subscription Subscription @default(FREE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  boards       Board[]
+}
+
+model Board {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  nodes       Node[]
+
+  @@index([ownerId])
+}
+
+model Node {
+  id        String     @id @default(cuid())
+  boardId   String
+  board     Board      @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  type      NodeType
+  positionX Float      @default(0)
+  positionY Float      @default(0)
+  width     Float      @default(250)
+  height    Float      @default(150)
+  content   Json       @default("{}")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  sourceConnections Connection[] @relation("SourceNode")
+  targetConnections Connection[] @relation("TargetNode")
+  aiChats           AIChat[]
+
+  @@index([boardId])
+}
+
+model Connection {
+  id       String  @id @default(cuid())
+  sourceId String
+  source   Node    @relation("SourceNode", fields: [sourceId], references: [id], onDelete: Cascade)
+  targetId String
+  target   Node    @relation("TargetNode", fields: [targetId], references: [id], onDelete: Cascade)
+  label    String?
+
+  @@index([sourceId])
+  @@index([targetId])
+}
+
+model AIChat {
+  id          String   @id @default(cuid())
+  nodeId      String
+  node        Node     @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  messages    Json     @default("[]")
+  creditsUsed Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([nodeId])
+}
