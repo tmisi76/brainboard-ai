@@ -2,18 +2,32 @@
 
 import { useChat } from "@ai-sdk/react";
 import { TextStreamChatTransport } from "ai";
-import { useState, useRef, useEffect, type FormEvent } from "react";
+import { useState, useRef, useEffect, useMemo, type FormEvent } from "react";
 import { Send, Bot, User, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-const transport = new TextStreamChatTransport({
-  api: "/api/chat",
-});
+import { ModelSelector } from "@/components/ModelSelector";
+import { DEFAULT_MODEL, type AIModelId } from "@/lib/ai/config";
 
 export function ChatTest() {
-  const { messages, sendMessage, status, error } = useChat({ transport });
+  const [selectedModel, setSelectedModel] = useState<AIModelId>(DEFAULT_MODEL);
+  const [chatKey, setChatKey] = useState(0);
+
+  const transport = useMemo(
+    () =>
+      new TextStreamChatTransport({
+        api: "/api/chat",
+        body: { model: selectedModel },
+      }),
+    [selectedModel]
+  );
+
+  const { messages, sendMessage, status, error } = useChat({
+    id: `chat-${chatKey}`,
+    transport,
+  });
+
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -31,6 +45,11 @@ export function ChatTest() {
     setInput("");
   };
 
+  const handleModelChange = (modelId: AIModelId) => {
+    setSelectedModel(modelId);
+    setChatKey((prev) => prev + 1);
+  };
+
   const textParts = (parts: typeof messages[number]["parts"]) =>
     parts
       .filter((p) => p.type === "text")
@@ -40,10 +59,17 @@ export function ChatTest() {
   return (
     <Card className="flex h-[600px] w-full max-w-2xl flex-col border-zinc-800 bg-slate-900">
       <CardHeader className="border-b border-zinc-800">
-        <CardTitle className="flex items-center gap-2 text-zinc-100">
-          <Bot className="h-5 w-5 text-violet-400" />
-          BrainBoard AI Chat
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-zinc-100">
+            <Bot className="h-5 w-5 text-violet-400" />
+            BrainBoard AI Chat
+          </CardTitle>
+          <ModelSelector
+            value={selectedModel}
+            onChange={handleModelChange}
+            disabled={isLoading}
+          />
+        </div>
       </CardHeader>
 
       <CardContent className="flex-1 overflow-y-auto p-4">
