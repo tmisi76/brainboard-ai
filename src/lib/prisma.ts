@@ -17,8 +17,15 @@ function getPrismaClient(): PrismaClient {
           "Create a Vercel Postgres database and link it to your project."
       );
     }
-    const adapter = new PrismaNeon({ connectionString: url });
-    globalForPrisma._prisma = new PrismaClient({ adapter });
+
+    // Prisma Accelerate URL (prisma+postgres://) → use accelerateUrl
+    // Direct postgres URL (postgres://) → use Neon adapter
+    if (url.startsWith("prisma+postgres://") || url.startsWith("prisma://")) {
+      globalForPrisma._prisma = new PrismaClient({ accelerateUrl: url });
+    } else {
+      const adapter = new PrismaNeon({ connectionString: url });
+      globalForPrisma._prisma = new PrismaClient({ adapter });
+    }
   }
   return globalForPrisma._prisma;
 }
